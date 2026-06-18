@@ -139,24 +139,21 @@ Los valores se guardan en `chrome.storage.sync` (no en el código).
    Conv: ≈0  |  0 tokens  |  –
    ```
 4. Empezá a escribir — el contador actualiza en tiempo real
-5. Para probar las notificaciones podés bajar temporalmente el umbral
-   en `content.js` (por ejemplo a `0.001`) y escribir cualquier texto
+5. Para validar las notificaciones, usá el botón **"Probar notificación"** en la
+   página de opciones (manda un mensaje de test a Telegram al instante)
 
 ---
 
 ## Personalizar los umbrales
 
-En `content.js`, el array `THRESHOLDS` define cuándo se envían notificaciones:
+Los umbrales y el límite de contexto se editan en la **página de opciones**
+(ya no en el código):
 
-```javascript
-const THRESHOLDS = [
-  { pct: 0.50, emoji: '⚠️',  label: '50%' },  // ← 100.000 tokens
-  { pct: 0.80, emoji: '🔴',  label: '80%' },  // ← 160.000 tokens
-  { pct: 0.95, emoji: '🚨',  label: '95%' },  // ← 190.000 tokens
-];
-```
+- **Umbrales de aviso (%)**: lista separada por comas, ej. `50, 80, 95`.
+- **Límite de contexto**: default `200000`; poné `1000000` si usás contexto de 1M.
 
-Podés agregar, quitar o cambiar los valores. Después de modificar `content.js` tenés que **recargar la extensión** en `chrome://extensions` (ícono de recarga junto a la extensión).
+Tras guardar, recargá la pestaña de claude.ai. Los valores se guardan en
+`chrome.storage.sync`.
 
 ---
 
@@ -187,17 +184,31 @@ Solo usa la librería estándar de Python — sin dependencias.
 token_usage_notification/
 ├── browser/                  Extensión MV3 para claude.ai
 │   ├── manifest.json         Declaración de la extensión (permisos, SW, opciones).
-│   ├── content.js            Inyectado en claude.ai: tokenizador, UI, umbrales,
-│   │                         estimación de contexto. Lee config de storage.
+│   ├── tokenizer.js          Tokenizador heurístico (módulo testeable).
+│   ├── content.js            Inyectado en claude.ai: UI, umbrales, estimación
+│   │                         de contexto. Lee config de storage.
 │   ├── background.js         Service Worker: hace el POST a la Telegram Bot API.
-│   ├── options.html          Página de opciones (token + chatId).
-│   └── options.js            Guarda/lee credenciales en chrome.storage.sync.
+│   ├── options.html          Página de opciones (creds, límite, umbrales, test).
+│   ├── options.js            Guarda/lee config en chrome.storage.sync.
+│   └── test/                 Tests del tokenizador (node --test).
 │
 ├── claude_code/              Monitor para Claude Code (CLI)
 │   ├── claude-monitor.py     Tail de los logs JSONL + notificación Telegram.
 │   └── .env.example          Plantilla de credenciales (copiar a .env).
 │
+├── package.json              Scripts de test/lint de la extensión.
+├── eslint.config.js          Config de ESLint.
 └── README.md                 Este archivo.
+```
+
+---
+
+## Desarrollo (extensión)
+
+```bash
+npm test          # tests del tokenizador (node --test, sin dependencias)
+npm install       # instala eslint (solo para lint)
+npm run lint
 ```
 
 ---
@@ -206,6 +217,6 @@ token_usage_notification/
 
 - **El conteo es una aproximación.** El tokenizador real de Anthropic no es público. El error típico es ±10–15%.
 - **La estimación de conversación** lee el texto visible en el DOM, lo que puede incluir algo de texto de la UI de claude.ai. Puede sobreestimar levemente.
-- **Los selectores del DOM** dependen de la estructura interna de claude.ai, que puede cambiar sin aviso con actualizaciones. Si la barra deja de aparecer, revisar los selectores en `findEditor()`.
+- **Los selectores del DOM** dependen de la estructura interna de claude.ai, que puede cambiar sin aviso. Si la barra no aparece, la extensión muestra un badge de aviso a los ~10s; revisar los selectores en `findEditor()`.
 - **No funciona en Claude Desktop** (la app Electron). Solo funciona en claude.ai dentro de un browser.
 - **Firefox** requiere recargar la extensión después de cada reinicio del browser (extensión temporal).

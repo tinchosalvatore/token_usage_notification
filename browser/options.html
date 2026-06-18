@@ -56,8 +56,17 @@
   <input id="chatId" type="text" placeholder="123456789" autocomplete="off" spellcheck="false">
   <small>Mandale un mensaje al bot, abrí <code>api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> y buscá <code>"chat":{"id":...}</code>.</small>
 
+  <label for="contextLimit">Límite de contexto (tokens)</label>
+  <input id="contextLimit" type="number" min="1000" step="1000" placeholder="200000" autocomplete="off">
+  <small>Default 200000. Usá 1000000 si tenés contexto de 1M.</small>
+
+  <label for="thresholds">Umbrales de aviso (%)</label>
+  <input id="thresholds" type="text" placeholder="50, 80, 95" autocomplete="off" spellcheck="false">
+  <small>Lista separada por comas. Te avisa al cruzar cada porcentaje.</small>
+
   <div>
     <button id="save">Guardar</button>
+    <button id="test" type="button" style="background:#0369a1">Probar notificación</button>
     <span id="status"></span>
   </div>
 

@@ -21,6 +21,10 @@ env/
 .coverage
 htmlcov/
 
+# ── Node / browser extension ────────────────────────────
+node_modules/
+npm-debug.log*
+
 # ── Editores / OS ───────────────────────────────────────
 .vscode/
 .idea/

@@ -25,25 +25,34 @@ python3 claude_code/claude-monitor.py        # foreground
 nohup python3 claude_code/claude-monitor.py & # persistent background
 ```
 
-**Browser extension** (load unpacked):
+**Browser extension** (load unpacked, no build step — plain files):
 - Chromium: `chrome://extensions` → Developer mode → "Load unpacked" → select `browser/`
 - Firefox: `about:debugging#/runtime/this-firefox` → "Load Temporary Add-on" → pick `browser/manifest.json`
-- After editing `content.js`/`background.js`, **reload the extension** in `chrome://extensions`.
+- After editing any `browser/*.js`, **reload the extension** in `chrome://extensions`.
 
-No build, lint, or test setup exists.
+**Tests / lint** (extension):
+```bash
+npm test            # node --test on browser/test/*.test.js — zero deps, offline
+npm install && npm run lint   # eslint (flat config in eslint.config.js)
+```
+Only `tokenizer.js` is unit-tested (pure functions). `content.js` is DOM-bound
+and untested. The Python monitor has no tests.
 
 ## Configuration (no secrets in source)
 
 Credentials live **outside** the repo — never hardcode token/chatId:
-- **Browser**: stored in `chrome.storage.sync`, edited via the options page
-  (`browser/options.html` + `options.js`). `content.js` loads them async with
-  `chrome.storage.sync.get` and refreshes on `chrome.storage.onChanged`.
+- **Browser**: all config in `chrome.storage.sync`, edited via the options page
+  (`browser/options.html` + `options.js`): `telegramToken`, `telegramChatId`,
+  `contextLimit` (number), `thresholds` (array of percent numbers, e.g.
+  `[50,80,95]`). `content.js` loads them async with `chrome.storage.sync.get`
+  and refreshes on `chrome.storage.onChanged`. The options page has a "test
+  notification" button that reuses the same `TELEGRAM_NOTIFY` SW path.
 - **Python**: read from env vars `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID`, with a
   stdlib `.env` auto-loader (`_load_dotenv`, reads `claude_code/.env`). Template
   is `claude_code/.env.example`. Optional env: `CONTEXT_LIMIT`, `POLL_INTERVAL`.
 
-`.env` and `*.secret` are gitignored. `THRESHOLDS` arrays (not secret) are still
-defined separately in `content.js` and `claude-monitor.py`.
+`.env`, `*.secret`, `node_modules/` are gitignored. Python `THRESHOLDS` are
+still in `claude-monitor.py` (not secret); the browser's are user-configurable.
 
 ## Architecture notes that aren't obvious from one file
 
@@ -51,17 +60,29 @@ defined separately in `content.js` and `claude-monitor.py`.
 external domains. `content.js` reads the DOM and counts tokens, then sends a
 `chrome.runtime.sendMessage({type:'TELEGRAM_NOTIFY', ...})` to `background.js`
 (service worker), which does the actual POST to `api.telegram.org`. The listener
-**must `return true`** for the async `sendResponse` to survive.
+**must `return true`** for the async `sendResponse` to survive. `content.js`
+reads the `sendResponse` result: on failure it un-fires the threshold (retries
+next input) and shows `⚠ envío falló` in the bar.
+
+**Browser: script load order.** `manifest.json` loads `tokenizer.js` **before**
+`content.js`; the tokenizer attaches `self.Tokenizer` (dual export — also
+`module.exports` for Node tests). `content.js` calls `self.Tokenizer.approxTokens`.
+Keep that order if adding content scripts.
 
 **Browser: DOM coupling.** Token estimation depends on claude.ai's internal DOM
-(ProseMirror editor, scroll container). If the bar stops appearing, the
-selectors in `findEditor()` and `estimateConversationTokens()` are the first
-suspects — claude.ai can change them without notice. SPA navigation is handled
-by patching `history.pushState` + a `MutationObserver`.
+(ProseMirror editor, scroll container). Selectors live in `findEditor()` and
+`findScrollContainer()` — first suspects if it breaks. If the editor isn't found
+within `INJECT_TIMEOUT` (~10s), `showBrokenBadge()` surfaces a visible warning
+instead of failing silently. SPA navigation patches `history.pushState` +
+`MutationObserver`; threshold `fired` flags reset on conversation-ID change
+(parsed from `/chat/<id>` in `onNavigate()`), not on a "low ratio" heuristic.
 
-**Token counting is an approximation** (`approxTokens`): ~4 chars/token for
-words, ~1/digit, 1/symbol. ±10–15% vs Anthropic's real (unpublished) BPE
-tokenizer. Both tools assume `CONTEXT_LIMIT = 200_000`.
+**Token counting is an approximation** (`tokenizer.js` `approxTokens`): ~4
+chars/token for latin words, ~3 digits/token, ~1/char for non-latin scripts,
+1/symbol. ±~10–15% vs Anthropic's real (unpublished) BPE tokenizer. It's
+isolated on purpose: swap only `approxTokens` to drop in a real tokenizer.
+Context limit is configurable (default 200_000; `detectContextLimit()` bumps to
+1M if the page mentions it). The Python monitor still hardcodes 200_000 default.
 
 **Python: do NOT sum `input_tokens` across turns.** Each Claude request resends
 the full history, so turn N's `input_tokens` already = cumulative context. The
