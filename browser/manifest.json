@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Claude Token Counter",
+  "version": "2.1.0",
+  "description": "Muestra tokens en tiempo real y notifica al celular vía Telegram",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://api.telegram.org/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

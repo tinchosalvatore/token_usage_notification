@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Claude Token Counter — Configuración</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      max-width: 480px;
+      margin: 40px auto;
+      padding: 0 20px;
+      line-height: 1.5;
+    }
+    h1 { font-size: 18px; margin-bottom: 4px; }
+    p.sub { margin-top: 0; opacity: .7; font-size: 13px; }
+    label { display: block; margin-top: 18px; font-weight: 600; font-size: 13px; }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 6px;
+      padding: 8px 10px;
+      font: 13px ui-monospace, "SF Mono", monospace;
+      border: 1px solid #8884;
+      border-radius: 6px;
+      background: transparent;
+      color: inherit;
+    }
+    small { display: block; margin-top: 4px; opacity: .6; font-size: 11px; }
+    button {
+      margin-top: 22px;
+      padding: 9px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      border: 0;
+      border-radius: 6px;
+      background: #c2410c;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:hover { background: #9a3412; }
+    #status { margin-left: 12px; font-size: 13px; color: #16a34a; }
+    .help { margin-top: 24px; font-size: 12px; opacity: .7; }
+    .help code { font-family: ui-monospace, monospace; }
+  </style>
+</head>
+<body>
+  <h1>Claude Token Counter</h1>
+  <p class="sub">Las credenciales se guardan en <code>chrome.storage.sync</code>, nunca en el código.</p>
+
+  <label for="token">Telegram Bot Token</label>
+  <input id="token" type="text" placeholder="7123456789:AAHxyz..." autocomplete="off" spellcheck="false">
+  <small>BotFather → /newbot → copiá el token.</small>
+
+  <label for="chatId">Telegram Chat ID</label>
+  <input id="chatId" type="text" placeholder="123456789" autocomplete="off" spellcheck="false">
+  <small>Mandale un mensaje al bot, abrí <code>api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> y buscá <code>"chat":{"id":...}</code>.</small>
+
+  <div>
+    <button id="save">Guardar</button>
+    <span id="status"></span>
+  </div>
+
+  <p class="help">
+    Después de guardar, recargá la pestaña de claude.ai para que tome la nueva config.
+  </p>
+
+  <script src="options.js"></script>
+</body>
+</html>

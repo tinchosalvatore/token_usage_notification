@@ -1,0 +1,41 @@
+# ── Python ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtualenv
+venv/
+.venv/
+env/
+
+# Tooling caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Editores / OS ───────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# ── Logs / runtime ──────────────────────────────────────
+*.log
+nohup.out
+
+# ── Secrets ─────────────────────────────────────────────
+# El token de Telegram NO se versiona. Si en el futuro se mueve
+# la config a un archivo aparte, ignoralo acá:
+.env
+*.secret
+config.local.*
