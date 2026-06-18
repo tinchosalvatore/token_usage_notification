@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this repo is
 
 Two **independent** tools that both estimate Claude context usage and push
-Telegram notifications when usage crosses thresholds (50% / 80% / 95% of a
-200,000-token context limit). They share no code — only the same Telegram
-notification idea and threshold scheme.
+Telegram notifications when usage crosses thresholds (default 50% / 80% / 95% of
+the context limit; 200k default, auto-detected per model). They share no code —
+only the same Telegram notification idea and threshold scheme.
 
 1. **`browser/`** — Chrome/Firefox extension (Manifest V3) for **claude.ai in a
    browser**. Shows a live token counter under the chat input.
@@ -21,9 +21,12 @@ editing comments.
 
 **Python monitor** (stdlib only, no deps, no venv needed):
 ```bash
-python3 claude_code/claude-monitor.py        # foreground
-nohup python3 claude_code/claude-monitor.py & # persistent background
+python3 claude_code/claude-monitor.py          # foreground
+nohup python3 claude_code/claude-monitor.py &  # persistent background
+python3 claude_code/claude-monitor.py --once   # single tick (smoke test)
+python3 -m unittest discover -s claude_code -p 'test_*.py'   # tests
 ```
+Runs as a `systemd --user` service via `claude_code/claude-monitor.service`.
 
 **Browser extension** (load unpacked, no build step — plain files):
 - Chromium: `chrome://extensions` → Developer mode → "Load unpacked" → select `browser/`
@@ -51,8 +54,8 @@ Credentials live **outside** the repo — never hardcode token/chatId:
   stdlib `.env` auto-loader (`_load_dotenv`, reads `claude_code/.env`). Template
   is `claude_code/.env.example`. Optional env: `CONTEXT_LIMIT`, `POLL_INTERVAL`.
 
-`.env`, `*.secret`, `node_modules/` are gitignored. Python `THRESHOLDS` are
-still in `claude-monitor.py` (not secret); the browser's are user-configurable.
+`.env`, `*.secret`, `node_modules/` are gitignored. Python `THRESHOLDS` live in
+`monitor_core.py` (not secret); the browser's are user-configurable.
 
 ## Architecture notes that aren't obvious from one file
 
@@ -84,9 +87,27 @@ isolated on purpose: swap only `approxTokens` to drop in a real tokenizer.
 Context limit is configurable (default 200_000; `detectContextLimit()` bumps to
 1M if the page mentions it). The Python monitor still hardcodes 200_000 default.
 
+**Python: core/CLI split.** Logic lives in `claude_code/monitor_core.py`
+(importable — underscore name); `claude-monitor.py` is a thin CLI that loads
+`.env`, validates creds, and calls `monitor_core.main()`. The CLI's hyphen makes
+it non-importable, hence the split (so `test_monitor_core.py` can import logic).
+
 **Python: do NOT sum `input_tokens` across turns.** Each Claude request resends
-the full history, so turn N's `input_tokens` already = cumulative context. The
-monitor tracks the **latest** turn's value (`ctx_now`), not a running sum.
+the full history, so turn N's `input_tokens` already = cumulative context.
+`process_line()` sets `session.ctx` to the **latest** value, never a sum.
 Context = `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`
-(see `context_tokens()`). It reads only newly-appended lines via a saved file
-offset (`file_pos`) and resets state when a newer `.jsonl` appears (new session).
+(`context_tokens()`).
+
+**Python: multi-session, per-file state.** The loop keeps `dict[path, Session]`
+(`Session` dataclass holds `pos`/`ctx`/`fired`/`limit` per `.jsonl`). It watches
+**all** files modified within `ACTIVE_WINDOW` (not just the newest), so parallel
+Claude Code sessions don't clobber each other. Each reads only newly-appended
+lines via its own `pos` offset. The FS glob is cached and refreshed every
+`REFRESH_EVERY` ticks; sleep is adaptive (`POLL_ACTIVE`/`POLL_IDLE`).
+
+**Python: threshold re-arm (`rearm()`).** Claude Code auto-compacts context, so
+the ratio drops sharply then climbs again. `rearm()` un-fires any threshold now
+above the current ratio, so it re-notifies on the next climb. `send_telegram()`
+returns a bool; a threshold is only added to `fired` on success (else retried) —
+parity with the browser. Context limit is per-session, auto-detected from the
+model id (`model_limit()`, e.g. `[1m]` → 1,000,000).

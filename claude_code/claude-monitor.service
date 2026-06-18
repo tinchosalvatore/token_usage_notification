@@ -1,0 +1,15 @@
+[Unit]
+Description=Claude Code Token Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Ajustá la ruta si clonaste el repo en otro lado.
+EnvironmentFile=%h/repos/python/token_usage_notification/claude_code/.env
+ExecStart=/usr/bin/python3 %h/repos/python/token_usage_notification/claude_code/claude-monitor.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

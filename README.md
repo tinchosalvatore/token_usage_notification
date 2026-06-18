@@ -172,9 +172,38 @@ cp .env.example .env
 # 2. Correr
 python3 claude-monitor.py              # foreground
 nohup python3 claude-monitor.py &      # background persistente
+python3 claude-monitor.py --once       # un solo tick (smoke test)
 ```
 
 Solo usa la librería estándar de Python — sin dependencias.
+
+**Qué hace:**
+- Vigila **todas** las sesiones activas en paralelo (cada `.jsonl` con su propio
+  estado), no solo la más reciente.
+- Auto-detecta el límite de contexto por modelo (1M si el modelo lo soporta).
+- Re-arma los umbrales tras un auto-compact: si el contexto baja y vuelve a
+  subir, te avisa de nuevo.
+- Si el envío a Telegram falla, reintenta en el próximo turno (no se pierde).
+- Polling adaptativo (1s con actividad, 5s en idle) — bajo consumo.
+
+**Como servicio (systemd, Linux):**
+```bash
+mkdir -p ~/.config/systemd/user
+cp claude_code/claude-monitor.service ~/.config/systemd/user/
+# editá la ruta del repo en el .service si hace falta
+systemctl --user daemon-reload
+systemctl --user enable --now claude-monitor.service
+journalctl --user -u claude-monitor -f          # ver logs
+```
+> macOS: usar un `launchd` plist equivalente con `ProgramArguments` apuntando a
+> `python3 .../claude-monitor.py` y `KeepAlive=true`.
+
+**Logging a archivo:** definí `LOG_FILE` en `.env` (rotación automática 1MB×3).
+
+**Tests:**
+```bash
+python3 -m unittest discover -s claude_code -p 'test_*.py'
+```
 
 ---
 
@@ -193,7 +222,10 @@ token_usage_notification/
 │   └── test/                 Tests del tokenizador (node --test).
 │
 ├── claude_code/              Monitor para Claude Code (CLI)
-│   ├── claude-monitor.py     Tail de los logs JSONL + notificación Telegram.
+│   ├── claude-monitor.py     CLI thin: carga .env, valida, llama al core.
+│   ├── monitor_core.py       Lógica: watcher multi-sesión, umbrales, Telegram.
+│   ├── test_monitor_core.py  Tests (python3 -m unittest).
+│   ├── claude-monitor.service Unit de systemd --user.
 │   └── .env.example          Plantilla de credenciales (copiar a .env).
 │
 ├── package.json              Scripts de test/lint de la extensión.
