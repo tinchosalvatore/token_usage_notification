@@ -9,6 +9,7 @@ const browserGlobals = {
   document: 'readonly', window: 'readonly', location: 'readonly',
   getComputedStyle: 'readonly', MutationObserver: 'readonly',
   setTimeout: 'readonly', console: 'readonly', history: 'readonly',
+  fetch: 'readonly', XMLHttpRequest: 'readonly', Date: 'readonly', Math: 'readonly',
 };
 
 const nodeGlobals = {
@@ -17,7 +18,11 @@ const nodeGlobals = {
 
 module.exports = [
   {
-    files: ['browser/tokenizer.js', 'browser/content.js', 'browser/background.js', 'browser/options.js'],
+    files: [
+      'browser/tokenizer.js', 'browser/content.js', 'browser/background.js',
+      'browser/options.js', 'browser/usage-parser.js', 'browser/interceptor.js',
+      'browser/pricing.js',
+    ],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: 'script',

@@ -59,33 +59,45 @@ Credentials live **outside** the repo — never hardcode token/chatId:
 
 ## Architecture notes that aren't obvious from one file
 
-**Browser: why two scripts.** MV3 forbids content scripts from `fetch()`-ing
-external domains. `content.js` reads the DOM and counts tokens, then sends a
-`chrome.runtime.sendMessage({type:'TELEGRAM_NOTIFY', ...})` to `background.js`
-(service worker), which does the actual POST to `api.telegram.org`. The listener
-**must `return true`** for the async `sendResponse` to survive. `content.js`
-reads the `sendResponse` result: on failure it un-fires the threshold (retries
-next input) and shows `⚠ envío falló` in the bar.
+**Browser: two data sources (real vs estimate).** Primary = REAL usage from the
+page's internal API. `interceptor.js` runs in the **MAIN world** (manifest
+`"world": "MAIN"`, `run_at: document_start`), monkeypatches `fetch`/`XHR`, reads
+a `response.clone()` (never consumes the app's stream), and `usage-parser.js`
+extracts the `usage` (exact tokens + cache + model). It posts to the ISOLATED
+`content.js` via `window.postMessage` (`{__ctSource:'ct-usage', usage}`).
+Fallback = DOM estimate (`tokenizer.js`) when no real data yet. `content.js`
+prefers `real.ctx`; the bar marks estimates with `≈`. This is the "comodín":
+it's fragile (undocumented internal format → silently falls back if it changes)
+and may breach Anthropic's ToS (not illegal — your own traffic). Disable by
+deleting the MAIN-world `content_scripts` entry.
 
-**Browser: script load order.** `manifest.json` loads `tokenizer.js` **before**
-`content.js`; the tokenizer attaches `self.Tokenizer` (dual export — also
-`module.exports` for Node tests). `content.js` calls `self.Tokenizer.approxTokens`.
-Keep that order if adding content scripts.
+**Browser: why the service worker.** MV3 forbids content scripts from
+`fetch()`-ing external domains, so `content.js` sends
+`chrome.runtime.sendMessage({type:'TELEGRAM_NOTIFY', ...})` to `background.js`,
+which POSTs to `api.telegram.org`. The listener **must `return true`** for the
+async `sendResponse`. `content.js` reads the result: on failure it un-fires the
+threshold (retry) and shows `⚠ envío falló`.
 
-**Browser: DOM coupling.** Token estimation depends on claude.ai's internal DOM
-(ProseMirror editor, scroll container). Selectors live in `findEditor()` and
-`findScrollContainer()` — first suspects if it breaks. If the editor isn't found
-within `INJECT_TIMEOUT` (~10s), `showBrokenBadge()` surfaces a visible warning
-instead of failing silently. SPA navigation patches `history.pushState` +
-`MutationObserver`; threshold `fired` flags reset on conversation-ID change
-(parsed from `/chat/<id>` in `onNavigate()`), not on a "low ratio" heuristic.
+**Browser: script load order & worlds.** ISOLATED world loads `tokenizer.js`,
+`pricing.js`, then `content.js`. MAIN world loads `usage-parser.js`, then
+`interceptor.js`. Each helper is a dual export (sets a `self.*` global AND
+`module.exports` for Node tests): `Tokenizer`, `Pricing`, `UsageParser`. Keep
+order if adding scripts.
 
-**Token counting is an approximation** (`tokenizer.js` `approxTokens`): ~4
-chars/token for latin words, ~3 digits/token, ~1/char for non-latin scripts,
-1/symbol. ±~10–15% vs Anthropic's real (unpublished) BPE tokenizer. It's
-isolated on purpose: swap only `approxTokens` to drop in a real tokenizer.
-Context limit is configurable (default 200_000; `detectContextLimit()` bumps to
-1M if the page mentions it). The Python monitor still hardcodes 200_000 default.
+**Browser: cost / ETA / history.** `pricing.js` maps model→limit and→USD
+(hardcoded public rates; cache read 0.1×, write 1.25×). `content.js` accumulates
+`real.totalCost` per turn, computes a linear-extrapolation `etaMinutes()` from
+recent `samples`, and persists a per-conversation summary (peak ctx, turns,
+cost) to `chrome.storage.local` (`ct-history`, throttled 10s).
+
+**Browser: DOM coupling (fallback path).** DOM estimate depends on claude.ai's
+internal DOM (ProseMirror editor, scroll container) — selectors in `findEditor()`
+/ `findScrollContainer()`. If the editor isn't found within `INJECT_TIMEOUT`
+(~10s), `showBrokenBadge()` shows a visible warning. SPA navigation patches
+`history.pushState` + `MutationObserver`; session state + threshold `fired` reset
+on conversation-ID change (`/chat/<id>` in `onNavigate()` → `resetSession()`).
+Effective context limit is per-model (`Pricing.modelLimit`), falling back to the
+configured value. The Python monitor still defaults to 200_000.
 
 **Python: core/CLI split.** Logic lives in `claude_code/monitor_core.py`
 (importable — underscore name); `claude-monitor.py` is a thin CLI that loads

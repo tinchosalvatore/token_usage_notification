@@ -1,6 +1,6 @@
 {
   "name": "claude-token-counter",
-  "version": "2.2.0",
+  "version": "3.0.0",
   "description": "Extensión MV3 que cuenta tokens en claude.ai y notifica por Telegram",
   "private": true,
   "scripts": {

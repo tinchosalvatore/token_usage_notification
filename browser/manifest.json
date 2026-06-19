@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Claude Token Counter",
-  "version": "2.2.0",
-  "description": "Muestra tokens en tiempo real y notifica al celular vía Telegram",
+  "version": "3.0.0",
+  "description": "Muestra tokens reales en tiempo real, costo y ETA, y notifica al celular vía Telegram",
   "permissions": [
     "storage"
   ],
@@ -19,8 +19,15 @@
   "content_scripts": [
     {
       "matches": ["https://claude.ai/*"],
-      "js": ["tokenizer.js", "content.js"],
+      "js": ["tokenizer.js", "pricing.js", "content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "comment": "MAIN world: intercepta fetch/XHR para capturar el usage REAL. Quitar esta entrada deshabilita el comodín y deja solo el estimador del DOM.",
+      "matches": ["https://claude.ai/*"],
+      "js": ["usage-parser.js", "interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ]
 }
